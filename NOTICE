@@ -1,0 +1,29 @@
+Snare — by Cognis Digital LLC
+Copyright (c) 2026 Cognis Digital LLC (Wyoming, USA)
+
+Snare's own code is source-available under the Cognis Open Collaboration License
+(COCL) v1.0 — see LICENSE. Commercial use of Snare's code: licensing@cognis.digital
+
+AGGREGATION NOTICE
+------------------
+Snare is an AGGREGATOR. It does not redistribute third-party blocklists in this
+repository; it fetches them at runtime from their official sources and compiles
+them locally. Each upstream list remains under ITS OWN license, and any compiled
+output you distribute is subject to those upstream licenses. Major sources and
+their licenses (see cognis_shield/catalog.py -> `license` field for the full set):
+
+  AdGuard filter lists ................. GPLv3
+  EasyList / EasyPrivacy ............... GPLv3 / CC BY-SA
+  StevenBlack hosts .................... MIT
+  uBlock Origin filters ................ GPLv3
+  abuse.ch URLhaus ..................... CC0
+  hagezi dns-blocklists ................ GPLv3
+  OISD ................................. free for personal/non-commercial (see oisd.nl)
+  Phishing Army ........................ free
+  Disconnect malvertising .............. GPLv3
+  Peter Lowe's list .................... free for non-commercial
+
+If you redistribute a compiled list, retain upstream attribution and comply with
+the most restrictive applicable upstream license (e.g. GPLv3 / CC BY-SA share-alike).
+This tool is for lawful ad/tracker/scam/malware/redirect blocking on systems you
+control.

@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "snare"
+version = "0.1.0"
+description = "Snare — browser ad / tracker / scam / redirect blocklist aggregator (by Cognis Digital)"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "Cognis Digital LLC" }]
+keywords = ["blocklist", "adblock", "adguard", "hosts", "dns", "anti-phishing",
+            "anti-malware", "trackers", "ublock", "snare", "cognis"]
+license = { text = "COCL-1.0" }
+dependencies = []
+
+[project.urls]
+Homepage = "https://cognis.digital"
+
+[project.scripts]
+snare = "snare.cli:main"
+
+[tool.setuptools]
+packages = ["snare"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
