@@ -63,10 +63,41 @@ python -m snare install-service --blockmap blockmap.json --doh cloudflare
 and redirect/malvertising — hagezi, OISD, 1Hosts, StevenBlack, uBlock, AdGuard,
 frogeye, ShadowWhisperer, Phishing.Database, and more (see `snare sources`).
 
+### Analytics, threat detection & auto-refresh
+
+```bash
+# rich analytics: hourly time-series, per-client block rates, rare + DGA-suspect domains
+python -m snare analytics
+
+# explain any domain: block status, source category, traffic label, DGA (malware) score
+python -m snare explain some-random-c2-domain.xyz
+
+# keep blocklists fresh automatically (systemd timer / launchd / Windows task)
+python -m snare install-refresh --hours 12 --apply
+```
+
+Snare scores every looked-up domain for **DGA (domain-generation-algorithm)**
+characteristics — the high-entropy, vowel-poor random names malware C2 uses — so it
+surfaces likely-malicious lookups **even when they're on no blocklist yet**. The
+dashboard flags any DGA suspect that was *passed through* in red.
+
+### Package it for browsers
+
+```bash
+python -m snare export extension --out snare-ext   # complete MV3 extension (Load unpacked)
+python -m snare export adguard --out snare.txt     # importable uBlock/AdGuard/Brave filter
+python -m snare export dnr --out rules.json        # raw Chrome MV3 declarativeNetRequest
+python -m snare export ublock-managed              # uBO enterprise managed-storage config
+```
+
+`export extension` writes a ready-to-load Manifest V3 extension (manifest + rules +
+README); `ublock-managed` produces a config you can push through managed policy to
+apply filters fleet-wide with no user action.
+
 ## Or just compile a blocklist file
 
 ```bash
-python -m snare sources                                   # list the 24 lists
+python -m snare sources                                   # list the 63 lists
 python -m snare build --format hosts --out snare.hosts    # everything -> hosts file
 python -m snare build --categories malware,phishing-scam --format adguard --out snare.txt
 python -m snare build --format dnsmasq --out snare.conf   # for dnsmasq / Pi-hole

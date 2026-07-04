@@ -11,7 +11,7 @@ import html
 import http.server
 import json
 
-from . import qlog
+from . import analytics, qlog
 
 _CSS = """
 :root{--bg:#0E0B14;--bg2:#16121F;--panel:#1B1626;--line:#2A2338;--ink:#ECE8F2;
@@ -54,7 +54,36 @@ def _bars(d, total):
     return "".join(out) or '<div class="bar" style="color:var(--dim)">no data yet</div>'
 
 
+def _dga_rows(suspects):
+    if not suspects:
+        return '<div class="bar" style="color:var(--dim)">none detected</div>'
+    out = []
+    for s in suspects[:8]:
+        leaked = s.get("action") != "block"
+        col = "var(--bad)" if leaked else "var(--mut)"
+        note = "PASSED THROUGH" if leaked else "blocked"
+        out.append(f'<div class="bar"><span style="width:150px;overflow:hidden;text-overflow:ellipsis" '
+                   f'title="{html.escape(str(s["domain"]))}">{html.escape(str(s["domain"]))}</span>'
+                   f'<span class="track"><span class="fill" style="width:{int(s["score"]*100)}%;'
+                   f'background:linear-gradient(90deg,#F85149,#FF8B7B)"></span></span>'
+                   f'<span class="n" style="color:{col};width:100px">{note}</span></div>')
+    return "".join(out)
+
+
+def _client_rows(per):
+    if not per:
+        return '<div class="bar" style="color:var(--dim)">no data yet</div>'
+    out = []
+    for c, a in list(per.items())[:8]:
+        out.append(f'<div class="bar"><span style="width:130px">{html.escape(str(c))}</span>'
+                   f'<span class="track"><span class="fill" style="width:{int(a["block_rate"]*100)}%"></span></span>'
+                   f'<span class="n">{a["blocked"]:,}/{a["total"]:,}</span></div>')
+    return "".join(out)
+
+
 def render(rep: dict, recent: list) -> str:
+    hourly = {k[-2:] + "h": v["total"] for k, v in rep.get("hourly", {}).items()}
+    dga_sus = rep.get("dga_suspects", [])
     rows = ""
     for e in reversed(recent[-40:]):
         act = "block" if e.get("action") == "block" else "allow"
@@ -73,15 +102,22 @@ def render(rep: dict, recent: list) -> str:
  <div class="kpi"><div class="v">{rep['total']:,}</div><div class="l">Queries</div></div>
  <div class="kpi"><div class="v" style="color:var(--bad)">{rep['blocked']:,}</div><div class="l">Blocked</div></div>
  <div class="kpi"><div class="v" style="color:var(--ok)">{rep['allowed']:,}</div><div class="l">Allowed</div></div>
- <div class="kpi"><div class="v">{rep['block_rate']*100:.1f}%</div><div class="l">Block rate</div></div>
+ <div class="kpi"><div class="v" style="color:{'var(--bad)' if dga_sus else 'var(--ink)'}">{len(dga_sus)}</div><div class="l">DGA threats</div></div>
 </div>
-<div class="grid">
+<div class="card" style="margin-top:16px;border-color:{'var(--bad)' if any(s.get('action')!='block' for s in dga_sus) else 'var(--line)'}">
+ <h2>⚠ Suspected malware / DGA domains <span style="color:var(--dim);text-transform:none;letter-spacing:0">— algorithmically-generated lookups, flagged even if not on any list</span></h2>
+ {_dga_rows(dga_sus)}</div>
+<div class="grid" style="margin-top:16px">
  <div class="card"><h2>Traffic by label</h2>{_bars(rep['by_label'], rep['total'])}</div>
  <div class="card"><h2>Blocked by category</h2>{_bars(rep['by_block_category'], rep['blocked'])}</div>
 </div>
 <div class="grid" style="margin-top:16px">
- <div class="card"><h2>Top blocked</h2>{_bars({d:1 for d in rep['top_blocked']}, 1) if False else ''.join(f'<div class="bar"><span>{html.escape(d)}</span></div>' for d in rep['top_blocked']) or '<div class="bar" style="color:var(--dim)">none</div>'}</div>
- <div class="card"><h2>Top clients</h2>{_bars(rep['top_clients'], rep['total'])}</div>
+ <div class="card"><h2>Hourly activity</h2>{_bars(hourly, rep['total'])}</div>
+ <div class="card"><h2>Clients (blocked / total)</h2>{_client_rows(rep.get('per_client', {}))}</div>
+</div>
+<div class="grid" style="margin-top:16px">
+ <div class="card"><h2>Top blocked</h2>{''.join(f'<div class="bar"><span>{html.escape(d)}</span></div>' for d in rep['top_blocked']) or '<div class="bar" style="color:var(--dim)">none</div>'}</div>
+ <div class="card"><h2>Rare domains</h2>{''.join(f'<div class="bar"><span>{html.escape(str(d))}</span></div>' for d in rep.get('rare_domains', [])[:8]) or '<div class="bar" style="color:var(--dim)">none</div>'}</div>
 </div>
 <div class="card" style="margin-top:16px"><h2>Recent queries</h2><table>{rows or '<tr><td style="color:var(--dim)">no queries logged yet</td></tr>'}</table></div>
 <div class="foot">Snare · self-hosted DNS ad/tracker/scam firewall · © 2026 Cognis Digital LLC · cognis.digital</div>
@@ -97,11 +133,12 @@ def serve(host: str = "127.0.0.1", port: int = 8353, log_path: str = None) -> No
 
         def do_GET(self):
             entries = qlog.load(lp)
+            rep = analytics.full(entries)
             if self.path.rstrip("/") == "/api":
-                body = json.dumps(qlog.report(entries)).encode()
+                body = json.dumps(rep).encode()
                 ctype = "application/json"
             else:
-                body = render(qlog.report(entries), entries).encode()
+                body = render(rep, entries).encode()
                 ctype = "text/html; charset=utf-8"
             self.send_response(200)
             self.send_header("Content-Type", ctype)

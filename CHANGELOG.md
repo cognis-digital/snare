@@ -2,6 +2,31 @@
 
 Adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] — 2026-07-04
+
+### Added
+- **Browser-extension packaging** (`snare export <target>`):
+  - `extension` — writes a complete, load-unpacked **Manifest V3** extension
+    (manifest.json + declarativeNetRequest rules.json + README) for Chrome/Edge.
+  - `adguard` — importable custom filter list for uBlock Origin / AdGuard / Brave.
+  - `dnr` — raw Chrome MV3 declarativeNetRequest ruleset (with static-rule-cap handling).
+  - `ublock-managed` — uBlock Origin enterprise **managed-storage** config to force
+    filters across a managed fleet with no user action.
+- **DGA / malware-domain detection** (`dga.py`) — entropy + vowel/digit/consonant-run
+  heuristic flags algorithmically-generated domains (likely C2) even when they're on
+  no blocklist. Surfaced via `snare explain <domain>` and the dashboard.
+- **Rich analytics** (`analytics.py`, `snare analytics`) — hourly time-series,
+  per-client breakdown with block rates, rare-domain surfacing, and DGA-suspect
+  lookups (flagged red when they were *passed through*).
+- **`snare explain <domain>`** — block status, source category, traffic label, and
+  DGA score for any domain.
+- **Scheduled auto-refresh** (`snare install-refresh --hours N [--apply]`) — systemd
+  timer / launchd StartInterval / Windows hourly Scheduled Task that rebuilds the
+  blockmap so lists stay current automatically.
+- Dashboard upgraded: DGA-threat KPI + panel, hourly activity, per-client block rates,
+  rare-domain panel.
+- 29 tests.
+
 ## [0.4.0] — 2026-07-04
 
 ### Added

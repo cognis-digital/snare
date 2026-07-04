@@ -8,7 +8,7 @@ import sys
 import json
 import os
 
-from . import __version__, qlog
+from . import __version__, analytics, dga, labels, pkg, qlog
 from . import resolver as resolvermod
 from . import service as servicemod
 from . import ui as uimod
@@ -169,6 +169,76 @@ def cmd_report(args):
     return 0
 
 
+def cmd_analytics(args):
+    rep = analytics.full(qlog.load(args.log or qlog.DEFAULT_LOG))
+    print(json.dumps(rep, indent=2))
+    return 0
+
+
+def cmd_explain(args):
+    bm = {}
+    if args.blockmap and os.path.exists(args.blockmap):
+        with open(args.blockmap, encoding="utf-8") as f:
+            bm = json.load(f)
+    cls = labels.classify(args.domain, bm)
+    out = {"domain": args.domain, "blocked": cls["blocked"],
+           "block_category": cls["block_category"], "label": cls["label"],
+           "dga": dga.score(args.domain)}
+    print(json.dumps(out, indent=2))
+    return 0
+
+
+def _domains_for_export(args):
+    if args.blockmap and os.path.exists(args.blockmap):
+        with open(args.blockmap, encoding="utf-8") as f:
+            return set(json.load(f).keys())
+    client = HttpClient(cache_dir=args.cache, offline=args.offline)
+    return set(_blockmap(client, _select(args.categories, args.sources)).keys())
+
+
+def cmd_export(args):
+    domains = _domains_for_export(args)
+    if args.target == "extension":
+        out = args.out or "snare-extension"
+        res = pkg.extension_bundle(domains, out)
+        print(f"[+] MV3 extension: {res['rules']:,} rules -> {res['dir']}/ "
+              + (f"({res['dropped']:,} over cap)" if res["dropped"] else ""))
+        print("    Load in Chrome/Edge: chrome://extensions → Developer mode → Load unpacked")
+        return 0
+    if args.target == "ublock-managed":
+        data = json.dumps(pkg.ublock_managed(domains), indent=2)
+    elif args.target == "adguard":
+        data = pkg.adguard_filter(domains)
+    elif args.target == "dnr":
+        rules, dropped = pkg.dnr_ruleset(domains)
+        data = json.dumps(rules)
+        if dropped:
+            print(f"   [!] {dropped:,} domains over the {pkg.DNR_LIMIT:,} static-rule cap", file=sys.stderr)
+    else:
+        print("targets: extension, adguard, dnr, ublock-managed", file=sys.stderr)
+        return 1
+    if args.out:
+        with open(args.out, "w", encoding="utf-8") as f:
+            f.write(data)
+        print(f"[+] {len(domains):,} domains -> {args.out} ({args.target})")
+    else:
+        print(data)
+    return 0
+
+
+def cmd_install_refresh(args):
+    res = servicemod.install_refresh(blockmap=args.blockmap, categories=args.categories,
+                                     hours=args.hours, apply=args.apply)
+    print(f"[snare] {res['system']} refresh scheduler (every {res['every_hours']}h) -> {res['file']}")
+    if res.get("applied"):
+        print("[snare] auto-refresh scheduled.")
+    else:
+        print("[snare] to schedule, run:")
+        for c in res["install"]:
+            print("   " + c)
+    return 0
+
+
 def build_parser():
     p = argparse.ArgumentParser(prog="snare",
                                 description="Snare — DNS ad/tracker/scam blocker + traffic labeler")
@@ -243,6 +313,32 @@ def build_parser():
     rp = sub.add_parser("report", help="traffic analytics over the query log")
     rp.add_argument("--log")
     rp.set_defaults(func=cmd_report)
+
+    an = sub.add_parser("analytics", help="rich analytics: hourly, per-client, rare + DGA-suspect domains")
+    an.add_argument("--log")
+    an.set_defaults(func=cmd_analytics)
+
+    ex = sub.add_parser("explain", help="explain a domain: block status, label, DGA (malware) score")
+    ex.add_argument("domain")
+    ex.add_argument("--blockmap", default="blockmap.json")
+    ex.set_defaults(func=cmd_explain)
+
+    xp = sub.add_parser("export", help="package for browsers: extension|adguard|dnr|ublock-managed")
+    xp.add_argument("target", help="extension | adguard | dnr | ublock-managed")
+    xp.add_argument("--out", help="output path/dir")
+    xp.add_argument("--blockmap", default="blockmap.json", help="use a prebuilt blockmap (else live)")
+    xp.add_argument("--categories")
+    xp.add_argument("--sources")
+    xp.add_argument("--offline", action="store_true")
+    xp.add_argument("--cache", default=".cache")
+    xp.set_defaults(func=cmd_export)
+
+    ir = sub.add_parser("install-refresh", help="schedule automatic blocklist refresh (systemd/launchd/schtasks)")
+    ir.add_argument("--blockmap", default="blockmap.json")
+    ir.add_argument("--categories")
+    ir.add_argument("--hours", type=int, default=12)
+    ir.add_argument("--apply", action="store_true", help="actually schedule it now")
+    ir.set_defaults(func=cmd_install_refresh)
     return p
 
 

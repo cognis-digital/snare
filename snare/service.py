@@ -44,6 +44,66 @@ def windows_cmd(argv) -> str:
     return "@echo off\r\nset PYTHONUTF8=1\r\n" + " ".join(f'"{a}"' if " " in a else a for a in argv) + "\r\n"
 
 
+def _refresh_argv(blockmap, categories):
+    parts = [PY, "-m", "snare", "map", "--out", os.path.abspath(blockmap)]
+    if categories:
+        parts += ["--categories", categories]
+    return parts
+
+
+def install_refresh(blockmap="blockmap.json", categories=None, hours=12,
+                    apply=False, outdir=".") -> dict:
+    """Schedule periodic blockmap rebuilds so blocklists stay fresh automatically.
+
+    systemd timer (Linux) / launchd StartInterval (macOS) / schtasks (Windows).
+    """
+    argv = _refresh_argv(blockmap, categories)
+    system = platform.system()
+    os.makedirs(outdir, exist_ok=True)
+    result = {"system": system, "every_hours": hours}
+
+    if system == "Linux":
+        svc = os.path.join(outdir, "snare-refresh.service")
+        tmr = os.path.join(outdir, "snare-refresh.timer")
+        open(svc, "w").write("[Unit]\nDescription=Snare blocklist refresh\n\n[Service]\n"
+                             "Type=oneshot\nExecStart=" + " ".join(argv) + "\n")
+        open(tmr, "w").write("[Unit]\nDescription=Snare blocklist refresh timer\n\n[Timer]\n"
+                             f"OnBootSec=5min\nOnUnitActiveSec={hours}h\nPersistent=true\n\n"
+                             "[Install]\nWantedBy=timers.target\n")
+        result.update(file=tmr, install=[
+            f"cp {svc} {tmr} ~/.config/systemd/user/",
+            "systemctl --user daemon-reload",
+            "systemctl --user enable --now snare-refresh.timer"])
+
+    elif system == "Darwin":
+        label = LABEL + ".refresh"
+        path = os.path.join(outdir, f"{label}.plist")
+        args = "".join(f"    <string>{a}</string>\n" for a in argv)
+        open(path, "w").write(
+            '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict>\n'
+            f"  <key>Label</key><string>{label}</string>\n"
+            f"  <key>ProgramArguments</key><array>\n{args}  </array>\n"
+            f"  <key>StartInterval</key><integer>{hours * 3600}</integer>\n"
+            "  <key>RunAtLoad</key><true/>\n</dict></plist>\n")
+        result.update(file=path, install=[
+            f"cp {path} ~/Library/LaunchAgents/{label}.plist",
+            f"launchctl load ~/Library/LaunchAgents/{label}.plist"])
+
+    else:  # Windows
+        path = os.path.join(outdir, "snare_refresh.cmd")
+        open(path, "w").write(windows_cmd(argv))
+        task_cmd = (f'schtasks /create /tn "Snare-Refresh" /tr "\'{os.path.abspath(path)}\'" '
+                    f'/sc HOURLY /mo {hours} /f')
+        result.update(file=path, install=[task_cmd])
+
+    if apply and result.get("install"):
+        for c in result["install"]:
+            subprocess.run(c if system == "Windows" else c.split(),
+                           shell=(system == "Windows"), check=False)
+        result["applied"] = True
+    return result
+
+
 def install(port=5353, blockmap="blockmap.json", upstream="1.1.1.1", doh=None,
             allowlist=None, host="127.0.0.1", apply=False, outdir=".") -> dict:
     argv = _cmd(port, blockmap, upstream, doh, allowlist, host)

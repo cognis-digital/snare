@@ -10,5 +10,6 @@ Keyless and offline-capable (fetches cache to disk). It aggregates third-party
 lists under their own licenses — see NOTICE.
 """
 
-__version__ = "0.4.0"
-__all__ = ["catalog", "client", "parse", "compile", "cli"]
+__version__ = "0.5.0"
+__all__ = ["catalog", "client", "parse", "compile", "cli",
+           "analytics", "dga", "pkg", "resolver", "service"]
