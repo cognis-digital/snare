@@ -1,6 +1,6 @@
 <h1 align="center">🟣 Snare</h1>
-<p align="center"><b>One blocklist that snares ads, trackers, scams &amp; redirect attacks — in any browser.</b><br>
-<i>Aggregates the major public lists (AdGuard family + more), dedupes, and compiles to the format your browser or DNS wants. Self-hosted, keyless, offline-capable.</i></p>
+<p align="center"><b>Self-hosted DNS ad/tracker/scam blocker that listens, studies &amp; labels your traffic.</b><br>
+<i>An AdGuard + NextDNS replacement you own: a filtering DNS resolver over 24 aggregated blocklists, with a query log and traffic analytics — keyless, offline-capable, zero-dependency.</i></p>
 
 <p align="center">
 <img alt="license" src="https://img.shields.io/badge/license-COCL--1.0-6D28D9">
@@ -23,11 +23,27 @@ your client. Millions of domains, one command.
 > **Where it works:** any browser via uBlock Origin / AdGuard, or network-wide via
 > a hosts file, Pi-hole, AdGuard Home, or dnsmasq.
 
-## Quick start
+## Run it as your resolver (AdGuard / NextDNS replacement)
 
 ```bash
 git clone https://github.com/cognis-digital/snare
 cd snare
+python -m snare map --out blockmap.json                 # compile domain->category map (once)
+python -m snare resolve --blockmap blockmap.json --port 5353
+#   → point your OS / router / browser DNS at 127.0.0.1:5353
+python -m snare report                                  # traffic analytics (NextDNS-style)
+python -m snare log -n 40                               # recent decisions
+```
+
+The resolver **listens** for DNS queries, **blocks** ads/trackers/scam/malware/
+redirect domains (sinkhole → 0.0.0.0, or NODATA), **forwards** everything else to
+an upstream (default 1.1.1.1), and **labels + logs** every query — so `snare report`
+shows block rate, category breakdown, top blocked/allowed domains, and top talkers.
+Parent-domain matching means `ads.doubleclick.net` is caught by `doubleclick.net`.
+
+## Or just compile a blocklist file
+
+```bash
 python -m snare sources                                   # list the 24 lists
 python -m snare build --format hosts --out snare.hosts    # everything -> hosts file
 python -m snare build --categories malware,phishing-scam --format adguard --out snare.txt

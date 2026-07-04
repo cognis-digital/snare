@@ -30,3 +30,13 @@ def merge(domain_sets) -> set:
     for s in domain_sets:
         out |= s
     return out
+
+
+def build_blockmap(tagged) -> dict:
+    """tagged: iterable of (domain_set, category) -> {domain: category} (first wins)."""
+    m = {}
+    for domains, category in tagged:
+        for d in domains:
+            if d not in m:
+                m[d] = category
+    return m
