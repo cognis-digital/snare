@@ -2,6 +2,16 @@
 
 Adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] — 2026-07-04
+
+### Added
+- **Per-client profiles** (`--profiles FILE`) — NextDNS-style per-device policy:
+  `{client_ip:{block_labels:[...],allow:[...]}}` (e.g. a kids device blocks the
+  `social`/`advertising` label); `"*"` wildcard applies to all clients.
+- **Client setup helper** (`snare setup <target>`) — copy-paste DNS-pointing
+  instructions for windows / macos / linux / router / pihole, and a uBlock import path.
+- 19 tests.
+
 ## [0.3.0] — 2026-07-04
 
 ### Added

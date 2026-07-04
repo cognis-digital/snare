@@ -107,8 +107,33 @@ def cmd_resolve(args):
         with open(args.allowlist, encoding="utf-8") as f:
             allow = {ln.strip().lower() for ln in f if ln.strip() and not ln.startswith("#")}
     doh = DOH_ENDPOINTS.get(args.doh, args.doh) if args.doh else None
+    prof = {}
+    if args.profiles and os.path.exists(args.profiles):
+        with open(args.profiles, encoding="utf-8") as f:
+            prof = json.load(f)
     resolvermod.serve(bm, host=args.host, port=args.port, upstream=args.upstream,
-                      sinkhole=args.sinkhole, log_path=args.log, allowlist=allow, doh_url=doh)
+                      sinkhole=args.sinkhole, log_path=args.log, allowlist=allow,
+                      doh_url=doh, profiles=prof)
+    return 0
+
+
+_SETUP = {
+    "windows": 'Admin PowerShell: Set-DnsClientServerAddress -InterfaceAlias "Wi-Fi" -ServerAddresses {host}\n   (run snare resolve --host {host} --port 53 as admin for system-wide DNS)',
+    "macos": "networksetup -setdnsservers Wi-Fi {host}\n   (run snare resolve --host {host} --port 53 with sudo)",
+    "linux": "systemd-resolved: set DNS={host} in /etc/systemd/resolved.conf; or 'nameserver {host}' in /etc/resolv.conf\n   (run snare resolve --host {host} --port 53 with sudo)",
+    "router": "Set your router's LAN DNS server to {host} (network-wide). Run snare on port 53 on that host.",
+    "ublock": "Browser-only, no DNS change: snare build --format adguard --out snare.txt\n   then uBlock Origin → Filter lists → Import… → snare.txt",
+    "pihole": "snare build --format hosts --out snare.hosts  → add as a Pi-hole adlist / custom list",
+}
+
+
+def cmd_setup(args):
+    tmpl = _SETUP.get(args.target)
+    if not tmpl:
+        print("targets: " + ", ".join(_SETUP))
+        return 1
+    print(f"# Point {args.target} at Snare ({args.host}:{args.port})")
+    print(tmpl.format(host=args.host, port=args.port))
     return 0
 
 
@@ -183,6 +208,7 @@ def build_parser():
     r.add_argument("--log")
     r.add_argument("--doh", help="encrypted upstream: cloudflare|google|quad9|adguard or a DoH URL")
     r.add_argument("--allowlist", help="file of domains to never block (overrides blocklist)")
+    r.add_argument("--profiles", help="per-client policy JSON {client_ip:{block_labels:[],allow:[]}}")
     r.add_argument("--offline", action="store_true")
     r.add_argument("--cache", default=".cache")
     r.set_defaults(func=cmd_resolve)
@@ -202,6 +228,12 @@ def build_parser():
     isv.add_argument("--host", default="127.0.0.1")
     isv.add_argument("--apply", action="store_true", help="actually register the service now")
     isv.set_defaults(func=cmd_install_service)
+
+    se = sub.add_parser("setup", help="print client DNS-setup instructions (windows/macos/linux/router/ublock/pihole)")
+    se.add_argument("target", nargs="?", default="", help="windows|macos|linux|router|ublock|pihole")
+    se.add_argument("--host", default="127.0.0.1")
+    se.add_argument("--port", type=int, default=53)
+    se.set_defaults(func=cmd_setup)
 
     lg = sub.add_parser("log", help="show recent DNS decisions")
     lg.add_argument("-n", type=int, default=40)

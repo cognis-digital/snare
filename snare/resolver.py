@@ -16,13 +16,15 @@ from . import dnswire, labels, qlog
 class SnareResolver:
     def __init__(self, blockmap: dict, upstream: str = "1.1.1.1",
                  sinkhole: str = "0.0.0.0", log_path: str = None, forwarder=None,
-                 allowlist=None, doh_url: str = None):
+                 allowlist=None, doh_url: str = None, profiles=None):
         self.blockmap = blockmap or {}
         self.upstream = upstream
         self.sinkhole = sinkhole
         self.log_path = log_path or qlog.DEFAULT_LOG
         self.allowlist = set(allowlist or ())
         self.doh_url = doh_url
+        # Per-client profiles (NextDNS-style): {client_ip: {"block_labels":[...], "allow":[...]}}
+        self.profiles = profiles or {}
         if forwarder:
             self.forward = forwarder
         elif doh_url:
@@ -42,8 +44,14 @@ class SnareResolver:
         except Exception:
             return None
         cls = labels.classify(qname, self.blockmap)
-        allowed_override = cls["blocked"] and self._allowlisted(qname)
+        prof = self.profiles.get(client_ip) or self.profiles.get("*") or {}
+        prof_allow = set(prof.get("allow", ()))
+        prof_block_labels = set(prof.get("block_labels", ()))
+        allowed_override = (cls["blocked"] and self._allowlisted(qname)) or (qname in prof_allow)
         blocked = cls["blocked"] and not allowed_override
+        # per-client policy can additionally block a whole label (e.g. kids device blocks "social")
+        if not blocked and not allowed_override and cls["label"] in prof_block_labels:
+            blocked = True
         entry = {
             "ts": datetime.datetime.now().isoformat(timespec="seconds"),
             "client": client_ip, "domain": qname,
