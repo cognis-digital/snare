@@ -1,12 +1,12 @@
 <h1 align="center">🟣 Snare</h1>
 <p align="center"><b>Self-hosted DNS ad/tracker/scam blocker that listens, studies &amp; labels your traffic.</b><br>
-<i>An AdGuard + NextDNS replacement you own: a filtering DNS resolver over 24 aggregated blocklists, with a query log and traffic analytics — keyless, offline-capable, zero-dependency.</i></p>
+<i>An AdGuard + NextDNS replacement you own: a filtering DNS resolver over 63 aggregated blocklists, with a query log and traffic analytics — keyless, offline-capable, zero-dependency.</i></p>
 
 <p align="center">
 <img alt="license" src="https://img.shields.io/badge/license-COCL--1.0-6D28D9">
 <img alt="python" src="https://img.shields.io/badge/python-3.9%2B-6D28D9">
 <img alt="deps" src="https://img.shields.io/badge/dependencies-none%20(stdlib)-6D28D9">
-<img alt="lists" src="https://img.shields.io/badge/sources-24%20lists-6D28D9">
+<img alt="lists" src="https://img.shields.io/badge/sources-63%20lists-6D28D9">
 </p>
 
 ---
@@ -40,6 +40,28 @@ redirect domains (sinkhole → 0.0.0.0, or NODATA), **forwards** everything else
 an upstream (default 1.1.1.1), and **labels + logs** every query — so `snare report`
 shows block rate, category breakdown, top blocked/allowed domains, and top talkers.
 Parent-domain matching means `ads.doubleclick.net` is caught by `doubleclick.net`.
+
+### Encrypted upstream, allowlist, dashboard, and run-as-service
+
+```bash
+# DNS-over-HTTPS upstream (encrypted): cloudflare | google | quad9 | adguard | <URL>
+python -m snare resolve --blockmap blockmap.json --doh cloudflare
+
+# never-block allowlist (overrides the blocklist, parent-domain aware)
+python -m snare resolve --blockmap blockmap.json --allowlist allow.txt
+
+# NextDNS-style web dashboard (Cognis-branded, self-contained, auto-refresh)
+python -m snare ui --port 8353            # → http://127.0.0.1:8353
+
+# install as an always-on service (auto-detects your OS)
+python -m snare install-service --blockmap blockmap.json --doh cloudflare
+#   Linux → systemd user unit · macOS → launchd agent · Windows → Scheduled Task
+#   add --apply to register it immediately
+```
+
+**63 aggregated lists** across ads, trackers, AdGuard family, malware, phishing/scam,
+and redirect/malvertising — hagezi, OISD, 1Hosts, StevenBlack, uBlock, AdGuard,
+frogeye, ShadowWhisperer, Phishing.Database, and more (see `snare sources`).
 
 ## Or just compile a blocklist file
 

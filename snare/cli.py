@@ -10,9 +10,12 @@ import os
 
 from . import __version__, qlog
 from . import resolver as resolvermod
+from . import service as servicemod
+from . import ui as uimod
 from .catalog import CATALOG
 from .client import HttpClient
 from .compile import FORMATS, build_blockmap, merge, render
+from .dnswire import DOH_ENDPOINTS
 from .parse import parse
 
 _BY_NAME = {s["name"]: s for s in CATALOG}
@@ -99,8 +102,32 @@ def cmd_resolve(args):
         print("[snare] no --blockmap; building live from sources (use `snare map` to cache)...")
         bm = _blockmap(HttpClient(cache_dir=args.cache, offline=args.offline),
                        _select(args.categories, None))
+    allow = set()
+    if args.allowlist and os.path.exists(args.allowlist):
+        with open(args.allowlist, encoding="utf-8") as f:
+            allow = {ln.strip().lower() for ln in f if ln.strip() and not ln.startswith("#")}
+    doh = DOH_ENDPOINTS.get(args.doh, args.doh) if args.doh else None
     resolvermod.serve(bm, host=args.host, port=args.port, upstream=args.upstream,
-                      sinkhole=args.sinkhole, log_path=args.log)
+                      sinkhole=args.sinkhole, log_path=args.log, allowlist=allow, doh_url=doh)
+    return 0
+
+
+def cmd_ui(args):
+    uimod.serve(host=args.host, port=args.port, log_path=args.log)
+    return 0
+
+
+def cmd_install_service(args):
+    res = servicemod.install(port=args.port, blockmap=args.blockmap, upstream=args.upstream,
+                             doh=(DOH_ENDPOINTS.get(args.doh, args.doh) if args.doh else None),
+                             allowlist=args.allowlist, host=args.host, apply=args.apply)
+    print(f"[snare] {res['system']} service file -> {res['file']}")
+    if res.get("applied"):
+        print("[snare] service installed & started.")
+    else:
+        print("[snare] to install, run:")
+        for c in res["install"]:
+            print("   " + c)
     return 0
 
 
@@ -154,9 +181,27 @@ def build_parser():
     r.add_argument("--sinkhole", default="0.0.0.0")
     r.add_argument("--categories")
     r.add_argument("--log")
+    r.add_argument("--doh", help="encrypted upstream: cloudflare|google|quad9|adguard or a DoH URL")
+    r.add_argument("--allowlist", help="file of domains to never block (overrides blocklist)")
     r.add_argument("--offline", action="store_true")
     r.add_argument("--cache", default=".cache")
     r.set_defaults(func=cmd_resolve)
+
+    u = sub.add_parser("ui", help="local web dashboard (NextDNS-style, Cognis-branded)")
+    u.add_argument("--host", default="127.0.0.1")
+    u.add_argument("--port", type=int, default=8353)
+    u.add_argument("--log")
+    u.set_defaults(func=cmd_ui)
+
+    isv = sub.add_parser("install-service", help="generate a run-as-service installer (systemd/launchd/Windows)")
+    isv.add_argument("--port", type=int, default=5353)
+    isv.add_argument("--blockmap", default="blockmap.json")
+    isv.add_argument("--upstream", default="1.1.1.1")
+    isv.add_argument("--doh")
+    isv.add_argument("--allowlist")
+    isv.add_argument("--host", default="127.0.0.1")
+    isv.add_argument("--apply", action="store_true", help="actually register the service now")
+    isv.set_defaults(func=cmd_install_service)
 
     lg = sub.add_parser("log", help="show recent DNS decisions")
     lg.add_argument("-n", type=int, default=40)

@@ -9,3 +9,8 @@ dist/
 block_*.txt
 out_*.txt
 .DS_Store
+
+snare_service.cmd
+snare.service
+*.plist
+blockmap.json

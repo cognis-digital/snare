@@ -15,12 +15,26 @@ from . import dnswire, labels, qlog
 
 class SnareResolver:
     def __init__(self, blockmap: dict, upstream: str = "1.1.1.1",
-                 sinkhole: str = "0.0.0.0", log_path: str = None, forwarder=None):
+                 sinkhole: str = "0.0.0.0", log_path: str = None, forwarder=None,
+                 allowlist=None, doh_url: str = None):
         self.blockmap = blockmap or {}
         self.upstream = upstream
         self.sinkhole = sinkhole
         self.log_path = log_path or qlog.DEFAULT_LOG
-        self.forward = forwarder or dnswire.forward
+        self.allowlist = set(allowlist or ())
+        self.doh_url = doh_url
+        if forwarder:
+            self.forward = forwarder
+        elif doh_url:
+            self.forward = lambda q, up: dnswire.forward_doh(q, doh_url)
+        else:
+            self.forward = dnswire.forward
+
+    def _allowlisted(self, domain: str) -> bool:
+        if domain in self.allowlist:
+            return True
+        parts = domain.split(".")
+        return any(".".join(parts[k:]) in self.allowlist for k in range(1, len(parts)))
 
     def handle_query(self, data: bytes, client_ip: str = "?") -> bytes:
         try:
@@ -28,14 +42,16 @@ class SnareResolver:
         except Exception:
             return None
         cls = labels.classify(qname, self.blockmap)
+        allowed_override = cls["blocked"] and self._allowlisted(qname)
+        blocked = cls["blocked"] and not allowed_override
         entry = {
             "ts": datetime.datetime.now().isoformat(timespec="seconds"),
             "client": client_ip, "domain": qname,
             "qtype": dnswire.QTYPE_NAMES.get(qtype, str(qtype)),
-            "action": "block" if cls["blocked"] else "allow",
+            "action": "block" if blocked else ("allow-listed" if allowed_override else "allow"),
             "label": cls["label"], "block_category": cls["block_category"],
         }
-        if cls["blocked"]:
+        if blocked:
             resp = dnswire.build_response(data, qend, qtype, self.sinkhole)
         else:
             try:

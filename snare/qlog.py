@@ -38,7 +38,7 @@ def load(path: str = DEFAULT_LOG, limit: int = 0) -> list:
 def report(entries: list, top: int = 10) -> dict:
     total = len(entries)
     blocked = [e for e in entries if e.get("action") == "block"]
-    allowed = [e for e in entries if e.get("action") == "allow"]
+    allowed = [e for e in entries if str(e.get("action", "")).startswith("allow")]
     return {
         "total": total,
         "blocked": len(blocked),

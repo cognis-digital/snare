@@ -2,6 +2,16 @@
 
 Adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] — 2026-07-04
+
+### Added
+- **DNS-over-HTTPS upstream** (`--doh cloudflare|google|quad9|adguard|<URL>`) — encrypted upstream resolution.
+- **Allowlist** (`--allowlist FILE`) — never-block overrides, parent-domain aware.
+- **Web dashboard** (`snare ui`) — NextDNS-style, Cognis-branded, self-contained, auto-refresh; `/api` JSON endpoint.
+- **Run-as-service installers** (`snare install-service`, `--apply`) — systemd / launchd / Windows Scheduled Task, OS auto-detected.
+- **Catalog expanded 24 -> 63 blocklists** (hagezi, OISD, 1Hosts, StevenBlack, uBlock, AdGuard CNAME/URL, frogeye, ShadowWhisperer, Phishing.Database, WindowsSpyBlocker, Perflyst, and more).
+- 16 tests.
+
 ## [0.2.0] — 2026-07-04
 
 ### Added

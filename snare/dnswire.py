@@ -97,3 +97,24 @@ def forward(query: bytes, upstream: str = "1.1.1.1", port: int = 53, timeout: fl
         return data
     finally:
         s.close()
+
+
+# Well-known DNS-over-HTTPS endpoints (RFC 8484, application/dns-message).
+DOH_ENDPOINTS = {
+    "cloudflare": "https://cloudflare-dns.com/dns-query",
+    "google": "https://dns.google/dns-query",
+    "quad9": "https://dns.quad9.net/dns-query",
+    "adguard": "https://dns.adguard-dns.com/dns-query",
+}
+
+
+def forward_doh(query: bytes, url: str = DOH_ENDPOINTS["cloudflare"], timeout: float = 5.0) -> bytes:
+    """Relay a query over DNS-over-HTTPS (encrypted upstream). Body is the raw
+    DNS wire message; response is the same."""
+    import urllib.request
+    req = urllib.request.Request(url, data=query, method="POST", headers={
+        "Content-Type": "application/dns-message",
+        "Accept": "application/dns-message",
+        "User-Agent": "snare/0.3 (+https://cognis.digital)"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.read()
